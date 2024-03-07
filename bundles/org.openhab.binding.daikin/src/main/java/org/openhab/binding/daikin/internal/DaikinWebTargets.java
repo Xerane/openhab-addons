@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -15,6 +15,7 @@ package org.openhab.binding.daikin.internal;
 import java.io.EOFException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,6 +32,7 @@ import org.openhab.binding.daikin.internal.api.ControlInfo;
 import org.openhab.binding.daikin.internal.api.EnergyInfoDayAndWeek;
 import org.openhab.binding.daikin.internal.api.EnergyInfoYear;
 import org.openhab.binding.daikin.internal.api.Enums.SpecialMode;
+import org.openhab.binding.daikin.internal.api.InfoParser;
 import org.openhab.binding.daikin.internal.api.SensorInfo;
 import org.openhab.binding.daikin.internal.api.airbase.AirbaseBasicInfo;
 import org.openhab.binding.daikin.internal.api.airbase.AirbaseControlInfo;
@@ -43,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * Handles performing the actual HTTP requests for communicating with Daikin air conditioning units.
  *
  * @author Tim Waterhouse - Initial Contribution
- * @author Paul Smedley <paul@smedley.id.au> - Modifications to support Airbase Controllers
+ * @author Paul Smedley - Modifications to support Airbase Controllers
  * @author Jimmy Tanagra - Add support for https and Daikin's uuid authentication
  *         Implement connection retry
  *
@@ -110,9 +112,11 @@ public class DaikinWebTargets {
         return ControlInfo.parse(response);
     }
 
-    public void setControlInfo(ControlInfo info) throws DaikinCommunicationException {
+    public boolean setControlInfo(ControlInfo info) throws DaikinCommunicationException {
         Map<String, String> queryParams = info.getParamString();
-        invoke(setControlInfoUri, queryParams);
+        String result = invoke(setControlInfoUri, queryParams);
+        Map<String, String> responseMap = InfoParser.parse(result);
+        return Optional.ofNullable(responseMap.get("ret")).orElse("").equals("OK");
     }
 
     public SensorInfo getSensorInfo() throws DaikinCommunicationException {
@@ -137,21 +141,32 @@ public class DaikinWebTargets {
         return EnergyInfoDayAndWeek.parse(response);
     }
 
-    public void setSpecialMode(SpecialMode specialMode) throws DaikinCommunicationException {
+    public void setSpecialMode(SpecialMode newMode) throws DaikinCommunicationException {
         Map<String, String> queryParams = new HashMap<>();
-        if (specialMode == SpecialMode.NORMAL) {
+        if (newMode == SpecialMode.NORMAL) {
             queryParams.put("set_spmode", "0");
+
+            ControlInfo controlInfo = getControlInfo();
+            if (!controlInfo.advancedMode.isUndefined()) {
+                queryParams.put("spmode_kind", controlInfo.getSpecialMode().getValue());
+            }
         } else {
             queryParams.put("set_spmode", "1");
-            queryParams.put("spmode_kind", Integer.toString(specialMode.getValue()));
+            queryParams.put("spmode_kind", newMode.getValue());
         }
         String response = invoke(setSpecialModeUri, queryParams);
+        if (!response.contains("ret=OK")) {
+            logger.warn("Error setting special mode. Response: '{}'", response);
+        }
     }
 
     public void setStreamerMode(boolean state) throws DaikinCommunicationException {
         Map<String, String> queryParams = new HashMap<>();
         queryParams.put("en_streamer", state ? "1" : "0");
         String response = invoke(setSpecialModeUri, queryParams);
+        if (!response.contains("ret=OK")) {
+            logger.warn("Error setting streamer mode. Response: '{}'", response);
+        }
     }
 
     // Daikin Airbase API

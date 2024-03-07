@@ -131,6 +131,10 @@ Advanced channels:
 | temperature_storage              | Number:Temperature   | yes       | Temperature Storage                                                     |
 | temperature_suction              | Number:Temperature   | yes       | Temperature Suction                                                     |
 | temperature_water_set            | Number:Temperature   | yes       | Temperature Water Setpoint                                              |
+| percent_water_limit_min          | Number:Dimensionless | no        | Percent Water Power limit Min                                           |
+| percent_water_limit_max          | Number:Dimensionless | no        | Percent Water Power limit Max                                           |
+| percent_heating_limit_min        | Number:Dimensionless | no        | Percent Heating Power limit Min                                         |
+| percent_heating_limit_max        | Number:Dimensionless | no        | Percent Heating Power limit Min                                         |
 | time_hour                        | Number:Dimensionless | yes       | Hour                                                                    |
 | time_minute                      | Number:Dimensionless | yes       | Minute                                                                  |
 | version_bios                     | Number:Dimensionless | yes       | Version BIOS                                                            |
@@ -162,13 +166,13 @@ The air heatpump has the following additional channels:
 
 ### ecotouch.things
 
-```
+```java
 Thing ecotouch:geo:heatpump "Waterkotte Heatpump" @ "basement" [ ip="192.168.1.100", username="admin", password="wtkadmin", refresh=120 ]
 ```
 
 ### ecotouch.items
 
-```
+```java
 Number:Temperature HeatPump_Temp_Aussen     { channel="ecotouch:geo:heatpump:temperature_outside" }
 Number:Temperature HeatPump_Temp_Aussen_1d  { channel="ecotouch:geo:heatpump:temperature_outside_24h" }
 Number:Temperature HeatPump_Temp_Quelle_in  { channel="ecotouch:geo:heatpump:temperature_source_in" }
@@ -184,7 +188,7 @@ Switch HeatPump_state_sourcepump            { channel="ecotouch:geo:heatpump:sta
 
 ### ecotouch.sitemap
 
-```
+```perl
 sitemap ecotouch label="Waterkotte EcoTouch"
 {
     Text item=HeatPump_Temp_Aussen
@@ -202,7 +206,7 @@ sitemap ecotouch label="Waterkotte EcoTouch"
 
 A snippet to show the current state of the heatpump (you need to have the corresponding items in your .items-file):
 
-```
+```java
     Text label="State" icon="settings" {
         Text item=HeatPump_state_sourcepump   label="State Source Pump [%s]"      valuecolor=[==ON="green", ==OFF="red"]
         Text item=HeatPump_state_heatingpump  label="State Heating Pump [%s]"     valuecolor=[==ON="green", ==OFF="red"]

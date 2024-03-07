@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -49,6 +49,9 @@ public class SomfyTahomaBindingConstants {
 
     // Uno Roller Shutter
     public static final ThingTypeUID THING_TYPE_ROLLERSHUTTER_UNO = new ThingTypeUID(BINDING_ID, "rollershutter_uno");
+
+    // Shutter
+    public static final ThingTypeUID THING_TYPE_SHUTTER = new ThingTypeUID(BINDING_ID, "shutter");
 
     // Screen
     public static final ThingTypeUID THING_TYPE_SCREEN = new ThingTypeUID(BINDING_ID, "screen");
@@ -175,6 +178,12 @@ public class SomfyTahomaBindingConstants {
     // RainSensor
     public static final ThingTypeUID THING_TYPE_RAINSENSOR = new ThingTypeUID(BINDING_ID, "rainsensor");
 
+    // CarbonDioxideSensor
+    public static final ThingTypeUID THING_TYPE_CARBON_DIOXIDE_SENSOR = new ThingTypeUID(BINDING_ID, "co2sensor");
+
+    // NoiseSensor
+    public static final ThingTypeUID THING_TYPE_NOISE_SENSOR = new ThingTypeUID(BINDING_ID, "noisesensor");
+
     // List of all Channel ids
     public static final String RSSI = "rssi";
 
@@ -182,8 +191,9 @@ public class SomfyTahomaBindingConstants {
     public static final String STATUS = "status";
     public static final String SCENARIOS = "scenarios";
 
-    // Roller shutter, Awning, Screen, Blind, Garage door, Window, Curtain
+    // Roller shutter, Shutter, Awning, Screen, Blind, Garage door, Window, Curtain
     public static final String CONTROL = "control";
+    public static final String MOVING = "moving";
 
     // Adjustable slats roller shutter
     public static final String ROCKER = "rocker";
@@ -233,6 +243,12 @@ public class SomfyTahomaBindingConstants {
 
     // Temperature sensor
     public static final String TEMPERATURE = "temperature";
+
+    // Carbon dioxide sensor
+    public static final String CO2_CONCENTRATION = "co2_concentration";
+
+    // Noise sensor
+    public static final String NOISE = "noise";
 
     // Alarm
     public static final String ALARM_COMMAND = "alarm_command";
@@ -287,7 +303,6 @@ public class SomfyTahomaBindingConstants {
     public static final String POWER_HEAT_PUMP = "power_heatpump";
     public static final String POWER_HEAT_ELEC = "power_heatelec";
     public static final String WATER_HEATER_MODE = "mode";
-    public static final String WATER_TEMPERATURE = "water_temperature";
     public static final String ELECTRIC_BOOSTER_OPERATING_TIME = "electric_booster_operating_time";
     public static final String SHOWERS = "showers";
 
@@ -318,6 +333,9 @@ public class SomfyTahomaBindingConstants {
     public static final String YUTAKI_TARGET_MODE = "yutaki_target_mode";
     public static final String YUTAKI_MODE = "yutaki_mode";
     public static final String HOLIDAY_MODE = "holiday_mode";
+    public static final String THERMOSTAT_SETTING_ZONE1 = "thermostat_setting_zone1";
+    public static final String WH_SETTING_TEMP_ZONE1 = "wh_setting_temp_zone1";
+    public static final String ROOM_AMBIENT_TEMP_ZONE1 = "room_ambient_temp_zone1";
 
     // Hitachi Air To Water Main Component
     public static final String AUTO_MANU_MODE = "auto_manu_mode";
@@ -360,12 +378,15 @@ public class SomfyTahomaBindingConstants {
     public static final String API_BASE_URL = "/enduser-mobile-web/enduserAPI/";
     public static final String EVENTS_URL = "events/";
     public static final String SETUP_URL = "setup/";
+
+    public static final String CONFIG_URL = "config/";
     public static final String GATEWAYS_URL = SETUP_URL + "gateways/";
     public static final String DEVICES_URL = SETUP_URL + "devices/";
     public static final String REFRESH_URL = DEVICES_URL + "states/refresh";
     public static final String EXEC_URL = "exec/";
     public static final String DELETE_URL = EXEC_URL + "current/setup/";
-    public static final String TAHOMA_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36";
+    public static final String LOCAL_TOKENS_URL = "/local/tokens/";
+    public static final String TAHOMA_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.82 Safari/537.36";
     public static final int TAHOMA_TIMEOUT = 5;
     public static final String UNAUTHORIZED = "Not logged in";
     public static final int TYPE_NONE = 0;
@@ -374,11 +395,17 @@ public class SomfyTahomaBindingConstants {
     public static final int TYPE_STRING = 3;
     public static final int TYPE_BOOLEAN = 6;
     public static final String UNAVAILABLE = "unavailable";
-    public static final String AUTHENTICATION_CHALLENGE = "HTTP protocol violation: Authentication challenge without WWW-Authenticate header";
-    public static final String AUTHENTICATION_OAUTH_GRANT_ERROR = "Provided Authorization Grant is invalid.";
+    public static final String TEMPORARILY_BANNED = "Too many attempts with an invalid token, temporarily banned.";
+
     public static final String TOO_MANY_REQUESTS = "Too many requests, try again later";
-    public static final int SUSPEND_TIME = 120;
+    public static final String EVENT_LISTENER_TIMEOUT = "No registered event listener";
+    public static final String AUTHENTICATION_OAUTH_GRANT_ERROR = "Provided Authorization Grant is invalid.";
+    public static final String AUTHENTICATION_OAUTH_INVALID_GRANT = "error.invalid.grant";
+    public static final String OPENHAB_TOKEN = "openHAB token";
+    public static final int SUSPEND_TIME = 300;
     public static final int RECONCILIATION_TIME = 600;
+    public static final int LOGIN_LIMIT_TIME = 60;
+    public static final int MAX_ERRORS = 5;
 
     // Commands
     public static final String COMMAND_MY = "my";
@@ -442,9 +469,11 @@ public class SomfyTahomaBindingConstants {
     public static final String RADIO_PART_BATTERY_STATE = "io:MaintenanceRadioPartBatteryState";
     public static final String SENSOR_PART_BATTERY_STATE = "io:MaintenanceSensorPartBatteryState";
     public static final String ZWAVE_SET_POINT_TYPE_STATE = "zwave:SetPointTypeState";
+    public static final String LUMINANCE_STATE = "core:LuminanceState";
 
     // supported uiClasses
     public static final String CLASS_ROLLER_SHUTTER = "RollerShutter";
+    public static final String CLASS_SHUTTER = "Shutter";
     public static final String CLASS_SCREEN = "Screen";
     public static final String CLASS_VENETIAN_BLIND = "VenetianBlind";
     public static final String CLASS_EXTERIOR_SCREEN = "ExteriorScreen";
@@ -477,12 +506,15 @@ public class SomfyTahomaBindingConstants {
     public static final String CLASS_WATER_HEATING_SYSTEM = "WaterHeatingSystem";
     public static final String CLASS_HITACHI_HEATING_SYSTEM = "HitachiHeatingSystem";
     public static final String CLASS_RAIN_SENSOR = "RainSensor";
+    public static final String CLASS_CARBON_DIOXIDE_SENSOR = "CarbonDioxideSensor";
+    public static final String CLASS_NOISE_SENSOR = "NoiseSensor";
 
     // unsupported uiClasses
     public static final String THING_PROTOCOL_GATEWAY = "ProtocolGateway";
     public static final String THING_REMOTE_CONTROLLER = "RemoteController";
     public static final String THING_NETWORK_COMPONENT = "NetworkComponent";
     public static final String THING_GENERIC = "Generic";
+    public static final String THING_CONFIGURATION_COMPONENT = "ConfigurationComponent";
 
     // Event states
     public static final String FAILED_EVENT = "FAILED";
@@ -501,10 +533,13 @@ public class SomfyTahomaBindingConstants {
             THING_TYPE_WATERSENSOR, THING_TYPE_HUMIDITYSENSOR, THING_TYPE_MYFOX_ALARM, THING_TYPE_THERMOSTAT,
             THING_TYPE_DIMMER_LIGHT, THING_TYPE_EXTERIOR_HEATING_SYSTEM, THING_TYPE_VALVE_HEATING_SYSTEM,
             THING_TYPE_BIOCLIMATIC_PERGOLA, THING_TYPE_WATERHEATINGSYSTEM, THING_TYPE_HITACHI_ATWHZ,
-            THING_TYPE_HITACHI_DHW, THING_TYPE_HITACHI_ATWMC, THING_TYPE_RAINSENSOR));
+            THING_TYPE_HITACHI_DHW, THING_TYPE_HITACHI_ATWMC, THING_TYPE_RAINSENSOR, THING_TYPE_SHUTTER,
+            THING_TYPE_CARBON_DIOXIDE_SENSOR, THING_TYPE_NOISE_SENSOR));
 
     // somfy gateways
-    public static Map<Integer, String> gatewayTypes = new HashMap<Integer, String>() {
+    public static Map<Integer, String> gatewayTypes = new HashMap<>() {
+        private static final long serialVersionUID = 7473481667820682573L;
+
         {
             put(0, "VIRTUAL_KIZBOX");
             put(2, "KIZBOX_V1");
@@ -541,6 +576,7 @@ public class SomfyTahomaBindingConstants {
             put(72, "TAHOMA_RAIL_DIN");
             put(77, "ELIOT");
             put(88, "WISER");
+            put(92, "NETATMO");
             put(99, "CONNECTIVITY KIT");
         }
     };

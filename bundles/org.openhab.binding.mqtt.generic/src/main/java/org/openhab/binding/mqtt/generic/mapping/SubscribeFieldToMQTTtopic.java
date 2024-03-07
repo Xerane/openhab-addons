@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -79,33 +79,31 @@ public class SubscribeFieldToMQTTtopic implements MqttMessageSubscriber {
         // Handle the conversion case of BigDecimal to Float,Double,Long,Integer and the respective
         // primitive types
         String typeName = type.getSimpleName();
-        if (value instanceof BigDecimal && !type.equals(BigDecimal.class)) {
-            BigDecimal bdValue = (BigDecimal) value;
-            if (type.equals(Float.class) || typeName.equals("float")) {
+        if (value instanceof BigDecimal bdValue && !type.equals(BigDecimal.class)) {
+            if (type.equals(Float.class) || "float".equals(typeName)) {
                 result = bdValue.floatValue();
-            } else if (type.equals(Double.class) || typeName.equals("double")) {
+            } else if (type.equals(Double.class) || "double".equals(typeName)) {
                 result = bdValue.doubleValue();
-            } else if (type.equals(Long.class) || typeName.equals("long")) {
+            } else if (type.equals(Long.class) || "long".equals(typeName)) {
                 result = bdValue.longValue();
-            } else if (type.equals(Integer.class) || typeName.equals("int")) {
+            } else if (type.equals(Integer.class) || "int".equals(typeName)) {
                 result = bdValue.intValue();
             }
         } else
         // Handle the conversion case of String to Float,Double,Long,Integer,BigDecimal and the respective
         // primitive types
-        if (value instanceof String && !type.equals(String.class)) {
-            String bdValue = (String) value;
-            if (type.equals(Float.class) || typeName.equals("float")) {
+        if (value instanceof String bdValue && !type.equals(String.class)) {
+            if (type.equals(Float.class) || "float".equals(typeName)) {
                 result = Float.valueOf(bdValue);
-            } else if (type.equals(Double.class) || typeName.equals("double")) {
+            } else if (type.equals(Double.class) || "double".equals(typeName)) {
                 result = Double.valueOf(bdValue);
-            } else if (type.equals(Long.class) || typeName.equals("long")) {
+            } else if (type.equals(Long.class) || "long".equals(typeName)) {
                 result = Long.valueOf(bdValue);
             } else if (type.equals(BigDecimal.class)) {
                 result = new BigDecimal(bdValue);
-            } else if (type.equals(Integer.class) || typeName.equals("int")) {
+            } else if (type.equals(Integer.class) || "int".equals(typeName)) {
                 result = Integer.valueOf(bdValue);
-            } else if (type.equals(Boolean.class) || typeName.equals("boolean")) {
+            } else if (type.equals(Boolean.class) || "boolean".equals(typeName)) {
                 result = Boolean.valueOf(bdValue);
             } else if (type.isEnum()) {
                 @SuppressWarnings({ "rawtypes", "unchecked" })

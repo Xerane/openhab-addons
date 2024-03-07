@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -51,6 +51,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
 
 /**
@@ -139,8 +140,10 @@ public class ReadmeHelper {
                 "|------------------------------------|------------------|------------------------|--------------|------------|\n");
 
         Arrays.asList(MiIoDevices.values()).forEach(device -> {
-            if (!device.getModel().equals("unknown")) {
-                String link = device.getModel().replace(".", "-");
+            if (!"unknown".equals(device.getModel())) {
+                String link = device.getThingType().equals(MiIoBindingConstants.THING_TYPE_VACUUM)
+                        ? "robo-rock-vacuum-channels"
+                        : device.getModel().replace(".", "-");
                 boolean isSupported = device.getThingType().equals(MiIoBindingConstants.THING_TYPE_UNSUPPORTED);
                 Boolean experimental = false;
                 String remark = "";
@@ -256,11 +259,11 @@ public class ReadmeHelper {
         StringBuilder sb = new StringBuilder();
         StringBuilder commentSb = new StringBuilder("Adding support for the following models:\r\n");
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        HashMap<String, String> names = new HashMap<String, String>();
+        HashMap<String, String> names = new HashMap<>();
         try {
             JsonReader reader = new JsonReader(new FileReader(DEVICE_NAMES_FILE));
             names = gson.fromJson(reader, names.getClass());
-        } catch (IOException e) {
+        } catch (JsonSyntaxException | IOException e) {
             LOGGER.info("Error reading name list {}: ", DEVICE_NAMES_FILE, e.getMessage());
         }
 

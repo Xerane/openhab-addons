@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -52,7 +52,7 @@ public class WemoCrockpotHandler extends WemoBaseThingHandler {
 
     private final Logger logger = LoggerFactory.getLogger(WemoCrockpotHandler.class);
 
-    public static final Set<ThingTypeUID> SUPPORTED_THING_TYPES = Collections.singleton(THING_TYPE_CROCKPOT);
+    public static final Set<ThingTypeUID> SUPPORTED_THING_TYPES = Set.of(THING_TYPE_CROCKPOT);
 
     private final Object jobLock = new Object();
 
@@ -128,7 +128,7 @@ public class WemoCrockpotHandler extends WemoBaseThingHandler {
 
         if (command instanceof RefreshType) {
             updateWemoState();
-        } else if (CHANNEL_COOKMODE.equals(channelUID.getId())) {
+        } else if (CHANNEL_COOK_MODE.equals(channelUID.getId())) {
             String commandString = command.toString();
             switch (commandString) {
                 case "OFF":
@@ -147,9 +147,13 @@ public class WemoCrockpotHandler extends WemoBaseThingHandler {
             }
             try {
                 String soapHeader = "\"urn:Belkin:service:basicevent:1#SetBinaryState\"";
-                String content = "<?xml version=\"1.0\"?>"
-                        + "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
-                        + "<s:Body>" + "<u:SetCrockpotState xmlns:u=\"urn:Belkin:service:basicevent:1\">" + "<mode>"
+                String content = """
+                        <?xml version="1.0"?>\
+                        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">\
+                        <s:Body>\
+                        <u:SetCrockpotState xmlns:u="urn:Belkin:service:basicevent:1">\
+                        <mode>\
+                        """
                         + mode + "</mode>" + "<time>" + time + "</time>" + "</u:SetCrockpotState>" + "</s:Body>"
                         + "</s:Envelope>";
                 wemoHttpCaller.executeCall(wemoURL, soapHeader, content);
@@ -202,12 +206,12 @@ public class WemoCrockpotHandler extends WemoBaseThingHandler {
                 case "50":
                     newMode = new StringType("WARM");
                     State warmTime = DecimalType.valueOf(time);
-                    updateState(CHANNEL_WARMCOOKTIME, warmTime);
+                    updateState(CHANNEL_WARM_COOK_TIME, warmTime);
                     break;
                 case "51":
                     newMode = new StringType("LOW");
                     State lowTime = DecimalType.valueOf(time);
-                    updateState(CHANNEL_LOWCOOKTIME, lowTime);
+                    updateState(CHANNEL_LOW_COOK_TIME, lowTime);
                     break;
                 case "52":
                     newMode = new StringType("HIGH");
@@ -215,8 +219,8 @@ public class WemoCrockpotHandler extends WemoBaseThingHandler {
                     updateState(CHANNEL_HIGHCOOKTIME, highTime);
                     break;
             }
-            updateState(CHANNEL_COOKMODE, newMode);
-            updateState(CHANNEL_COOKEDTIME, newCoockedTime);
+            updateState(CHANNEL_COOK_MODE, newMode);
+            updateState(CHANNEL_COOKED_TIME, newCoockedTime);
             updateStatus(ThingStatus.ONLINE);
         } catch (IOException e) {
             logger.debug("Failed to get actual state for device '{}': {}", getThing().getUID(), e.getMessage(), e);

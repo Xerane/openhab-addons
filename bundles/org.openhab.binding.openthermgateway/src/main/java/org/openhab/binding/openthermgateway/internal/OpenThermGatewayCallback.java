@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -17,7 +17,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 /**
  * The {@link OpenThermGatewayCallback} is used as a callback interface by a connector to signal status
  * and relay incoming messages to be processed by the binding.
- * 
+ *
  * @author Arjen Korevaar - Initial contribution
  */
 @NonNullByDefault
@@ -26,4 +26,6 @@ public interface OpenThermGatewayCallback {
     void connectionStateChanged(ConnectionState state);
 
     void receiveMessage(Message message);
+
+    void receiveAcknowledgement(String message);
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -10,16 +10,18 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-
 package org.openhab.automation.jsscripting.internal.scope;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.automation.module.script.ScriptExtensionProvider;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
@@ -55,7 +57,7 @@ public abstract class ScriptDisposalAwareScriptExtensionProvider
 
     @Override
     public Collection<String> getPresets() {
-        return Collections.singleton(getPresetName());
+        return Set.of(getPresetName());
     }
 
     @Override
@@ -64,10 +66,10 @@ public abstract class ScriptDisposalAwareScriptExtensionProvider
     }
 
     @Override
-    public Object get(String scriptIdentifier, String type) throws IllegalArgumentException {
-
+    public @Nullable Object get(String scriptIdentifier, String type) throws IllegalArgumentException {
         Map<String, Object> forScript = idToTypes.computeIfAbsent(scriptIdentifier, k -> new HashMap<>());
-        return forScript.computeIfAbsent(type, k -> types.get(k).apply(scriptIdentifier));
+        return forScript.computeIfAbsent(type,
+                k -> Objects.nonNull(types.get(k)) ? types.get(k).apply(scriptIdentifier) : null);
     }
 
     @Override
@@ -89,8 +91,8 @@ public abstract class ScriptDisposalAwareScriptExtensionProvider
 
         if (forScript != null) {
             for (Object o : forScript.values()) {
-                if (o instanceof ScriptDisposalAware) {
-                    ((ScriptDisposalAware) o).unload(scriptIdentifier);
+                if (o instanceof ScriptDisposalAware script) {
+                    script.unload(scriptIdentifier);
                 }
             }
         }

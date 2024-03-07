@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -40,6 +40,11 @@ public class Locations extends PlugwiseHACollection<Location> {
                     Logs updatedPointLogs = location.getPointLogs();
                     if (updatedPointLogs != null) {
                         updatedPointLogs.merge(originalLocation.getPointLogs());
+                    }
+
+                    ActuatorFunctionalities updatedActuatorFunctionalities = location.getActuatorFunctionalities();
+                    if (updatedActuatorFunctionalities != null) {
+                        updatedActuatorFunctionalities.merge(originalLocation.getActuatorFunctionalities());
                     }
 
                     this.put(id, location);

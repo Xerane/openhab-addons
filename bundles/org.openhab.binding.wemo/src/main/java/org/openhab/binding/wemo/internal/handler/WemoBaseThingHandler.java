@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -14,15 +14,18 @@ package org.openhab.binding.wemo.internal.handler;
 
 import java.net.URL;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.wemo.internal.WemoBindingConstants;
-import org.openhab.binding.wemo.internal.WemoUtil;
 import org.openhab.binding.wemo.internal.http.WemoHttpCall;
 import org.openhab.core.io.transport.upnp.UpnpIOParticipant;
 import org.openhab.core.io.transport.upnp.UpnpIOService;
@@ -44,17 +47,17 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public abstract class WemoBaseThingHandler extends BaseThingHandler implements UpnpIOParticipant {
 
-    private static final int SUBSCRIPTION_RENEWAL_INITIAL_DELAY_SECONDS = 15;
-    private static final int SUBSCRIPTION_RENEWAL_INTERVAL_SECONDS = 60;
+    private static final int PORT_RANGE_START = 49151;
+    private static final int PORT_RANGE_END = 49157;
 
     private final Logger logger = LoggerFactory.getLogger(WemoBaseThingHandler.class);
+    private final UpnpIOService service;
+    private final Object upnpLock = new Object();
 
-    protected @Nullable UpnpIOService service;
     protected WemoHttpCall wemoHttpCaller;
 
     private @Nullable String host;
-    private Map<String, Instant> subscriptions = new ConcurrentHashMap<String, Instant>();
-    private @Nullable ScheduledFuture<?> subscriptionRenewalJob;
+    private Map<String, Instant> subscriptions = new ConcurrentHashMap<>();
 
     public WemoBaseThingHandler(Thing thing, UpnpIOService upnpIOService, WemoHttpCall wemoHttpCaller) {
         super(thing);
@@ -64,23 +67,16 @@ public abstract class WemoBaseThingHandler extends BaseThingHandler implements U
 
     @Override
     public void initialize() {
-        UpnpIOService service = this.service;
-        if (service != null) {
-            logger.debug("Registering UPnP participant for {}", getThing().getUID());
-            service.registerParticipant(this);
-            initializeHost();
-        }
+        logger.debug("Registering UPnP participant for {}", getThing().getUID());
+        service.registerParticipant(this);
+        initializeHost();
     }
 
     @Override
     public void dispose() {
         removeSubscriptions();
-        UpnpIOService service = this.service;
-        if (service != null) {
-            logger.debug("Unregistering UPnP participant for {}", getThing().getUID());
-            service.unregisterParticipant(this);
-        }
-        cancelSubscriptionRenewalJob();
+        logger.debug("Unregistering UPnP participant for {}", getThing().getUID());
+        service.unregisterParticipant(this);
     }
 
     @Override
@@ -90,7 +86,18 @@ public abstract class WemoBaseThingHandler extends BaseThingHandler implements U
 
     @Override
     public void onStatusChanged(boolean status) {
-        // can be overridden by subclasses
+        if (status) {
+            logger.debug("UPnP device {} for {} is present", getUDN(), getThing().getUID());
+        } else {
+            logger.info("UPnP device {} for {} is absent", getUDN(), getThing().getUID());
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR);
+            // Expire subscriptions.
+            synchronized (upnpLock) {
+                for (Entry<String, Instant> subscription : subscriptions.entrySet()) {
+                    subscription.setValue(Instant.MIN);
+                }
+            }
+        }
     }
 
     @Override
@@ -105,126 +112,44 @@ public abstract class WemoBaseThingHandler extends BaseThingHandler implements U
         }
         logger.debug("Subscription to service {} for {} {}", service, getUDN(), succeeded ? "succeeded" : "failed");
         if (succeeded) {
-            subscriptions.put(service, Instant.now());
+            synchronized (upnpLock) {
+                subscriptions.put(service, Instant.now());
+            }
         }
     }
 
     @Override
     public @Nullable String getUDN() {
-        return (String) this.getThing().getConfiguration().get(WemoBindingConstants.UDN);
+        return (String) this.getConfig().get(WemoBindingConstants.UDN);
     }
 
     protected boolean isUpnpDeviceRegistered() {
-        UpnpIOService service = this.service;
-        return service != null && service.isRegistered(this);
+        return service.isRegistered(this);
     }
 
     protected void addSubscription(String serviceId) {
-        if (subscriptions.containsKey(serviceId)) {
-            logger.debug("{} already subscribed to {}", getUDN(), serviceId);
-            return;
+        synchronized (upnpLock) {
+            if (subscriptions.containsKey(serviceId)) {
+                logger.debug("{} already subscribed to {}", getUDN(), serviceId);
+                return;
+            }
+            subscriptions.put(serviceId, Instant.MIN);
+            logger.debug("Adding GENA subscription {} for {}, participant is {}", serviceId, getUDN(),
+                    service.isRegistered(this) ? "registered" : "not registered");
         }
-        if (subscriptions.isEmpty()) {
-            logger.debug("Adding first GENA subscription for {}, scheduling renewal job", getUDN());
-            scheduleSubscriptionRenewalJob();
-        }
-        subscriptions.put(serviceId, Instant.ofEpochSecond(0));
-        UpnpIOService service = this.service;
-        if (service == null) {
-            return;
-        }
-        if (!service.isRegistered(this)) {
-            logger.debug("Registering UPnP participant for {}", getUDN());
-            service.registerParticipant(this);
-        }
-        if (!service.isRegistered(this)) {
-            logger.debug("Trying to add GENA subscription {} for {}, but service is not registered", serviceId,
-                    getUDN());
-            return;
-        }
-        logger.debug("Adding GENA subscription {} for {}", serviceId, getUDN());
         service.addSubscription(this, serviceId, WemoBindingConstants.SUBSCRIPTION_DURATION_SECONDS);
     }
 
-    protected void removeSubscription(String serviceId) {
-        UpnpIOService service = this.service;
-        if (service == null) {
-            return;
-        }
-        subscriptions.remove(serviceId);
-        if (subscriptions.isEmpty()) {
-            logger.debug("Removing last GENA subscription for {}, cancelling renewal job", getUDN());
-            cancelSubscriptionRenewalJob();
-        }
-        if (!service.isRegistered(this)) {
-            logger.debug("Trying to remove GENA subscription {} for {}, but service is not registered", serviceId,
-                    getUDN());
-            return;
-        }
-        logger.debug("Unsubscribing {} from service {}", getUDN(), serviceId);
-        service.removeSubscription(this, serviceId);
-    }
-
-    private void scheduleSubscriptionRenewalJob() {
-        cancelSubscriptionRenewalJob();
-        this.subscriptionRenewalJob = scheduler.scheduleWithFixedDelay(this::renewSubscriptions,
-                SUBSCRIPTION_RENEWAL_INITIAL_DELAY_SECONDS, SUBSCRIPTION_RENEWAL_INTERVAL_SECONDS, TimeUnit.SECONDS);
-    }
-
-    private void cancelSubscriptionRenewalJob() {
-        ScheduledFuture<?> subscriptionRenewalJob = this.subscriptionRenewalJob;
-        if (subscriptionRenewalJob != null) {
-            subscriptionRenewalJob.cancel(true);
-        }
-        this.subscriptionRenewalJob = null;
-    }
-
-    private void renewSubscriptions() {
-        if (subscriptions.isEmpty()) {
-            return;
-        }
-        UpnpIOService service = this.service;
-        if (service == null) {
-            return;
-        }
-        if (!service.isRegistered(this)) {
-            service.registerParticipant(this);
-        }
-        if (!service.isRegistered(this)) {
-            logger.debug("Trying to renew GENA subscriptions for {}, but service is not registered", getUDN());
-            return;
-        }
-        logger.debug("Renewing GENA subscriptions for {}", getUDN());
-        subscriptions.forEach((serviceId, lastRenewed) -> {
-            if (lastRenewed.isBefore(Instant.now().minusSeconds(
-                    WemoBindingConstants.SUBSCRIPTION_DURATION_SECONDS - SUBSCRIPTION_RENEWAL_INTERVAL_SECONDS))) {
-                logger.debug("Subscription for service {} with timestamp {} has expired, renewing", serviceId,
-                        lastRenewed);
-                service.removeSubscription(this, serviceId);
-                service.addSubscription(this, serviceId, WemoBindingConstants.SUBSCRIPTION_DURATION_SECONDS);
-            }
-        });
-    }
-
     private void removeSubscriptions() {
-        if (subscriptions.isEmpty()) {
-            return;
+        logger.debug("Removing GENA subscriptions for {}, participant is {}", getUDN(),
+                service.isRegistered(this) ? "registered" : "not registered");
+        synchronized (upnpLock) {
+            subscriptions.forEach((serviceId, lastRenewed) -> {
+                logger.debug("Removing subscription for service {}", serviceId);
+                service.removeSubscription(this, serviceId);
+            });
+            subscriptions.clear();
         }
-        UpnpIOService service = this.service;
-        if (service == null) {
-            return;
-        }
-        if (!service.isRegistered(this)) {
-            logger.debug("Trying to remove GENA subscriptions for {}, but service is not registered",
-                    getThing().getUID());
-            return;
-        }
-        logger.debug("Removing GENA subscriptions for {}", getUDN());
-        subscriptions.forEach((serviceId, lastRenewed) -> {
-            logger.debug("Removing subscription for service {}", serviceId);
-            service.removeSubscription(this, serviceId);
-        });
-        subscriptions.clear();
     }
 
     public @Nullable String getWemoURL(String actionService) {
@@ -234,16 +159,8 @@ public abstract class WemoBaseThingHandler extends BaseThingHandler implements U
                     "@text/config-status.error.missing-ip");
             return null;
         }
-        int portCheckStart = 49151;
-        int portCheckStop = 49157;
-        String port = null;
-        for (int i = portCheckStart; i < portCheckStop; i++) {
-            if (WemoUtil.serviceAvailableFunction.apply(host, i)) {
-                port = String.valueOf(i);
-                break;
-            }
-        }
-        if (port == null) {
+        int port = scanForPort(host);
+        if (port == 0) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                     "@text/config-status.error.missing-url");
             return null;
@@ -263,12 +180,43 @@ public abstract class WemoBaseThingHandler extends BaseThingHandler implements U
         host = getHostFromService();
     }
 
+    private int scanForPort(String host) {
+        Integer portFromService = getPortFromService();
+        List<Integer> portsToCheck = new ArrayList<>(PORT_RANGE_END - PORT_RANGE_START + 1);
+        Stream<Integer> portRange = IntStream.rangeClosed(PORT_RANGE_START, PORT_RANGE_END).boxed();
+        if (portFromService != null) {
+            portsToCheck.add(portFromService);
+            portRange = portRange.filter(p -> p.intValue() != portFromService);
+        }
+        portsToCheck.addAll(portRange.collect(Collectors.toList()));
+        int port = 0;
+        for (Integer portCheck : portsToCheck) {
+            String urlProbe = "http://" + host + ":" + portCheck;
+            logger.trace("Probing {} to find port", urlProbe);
+            if (!wemoHttpCaller.probeURL(urlProbe)) {
+                continue;
+            }
+            port = portCheck;
+            logger.trace("Successfully detected port {}", port);
+            break;
+        }
+        return port;
+    }
+
     private @Nullable String getHostFromService() {
-        UpnpIOService service = this.service;
-        if (service != null) {
-            URL descriptorURL = service.getDescriptorURL(this);
-            if (descriptorURL != null) {
-                return descriptorURL.getHost();
+        URL descriptorURL = service.getDescriptorURL(this);
+        if (descriptorURL != null) {
+            return descriptorURL.getHost();
+        }
+        return null;
+    }
+
+    private @Nullable Integer getPortFromService() {
+        URL descriptorURL = service.getDescriptorURL(this);
+        if (descriptorURL != null) {
+            int port = descriptorURL.getPort();
+            if (port != -1) {
+                return port;
             }
         }
         return null;

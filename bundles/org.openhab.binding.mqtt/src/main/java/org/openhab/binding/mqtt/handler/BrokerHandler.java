@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -73,7 +73,7 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
     }
 
     /**
-     * This method gets called by the {@link PinningSSLContextProvider} if a new public key
+     * This method gets called by the {@link PinTrustManager} if a new public key
      * or certificate hash got pinned. The hash is stored in the thing configuration.
      */
     @Override
@@ -105,7 +105,7 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
 
     @Override
     public void pinnedConnectionDenied(Pin pin) {
-        // We don't need to handle this here, because the {@link PinningSSLContextProvider}
+        // We don't need to handle this here, because the {@link PinTrustManager}
         // will throw a CertificateException if the connection fails.
     }
 
@@ -136,12 +136,12 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
 
     /**
      * Reads the thing configuration related to public key or certificate pinning, creates an appropriate a
-     * {@link PinningSSLContextProvider} and assigns it to the {@link MqttBrokerConnection} instance.
+     * {@link PinTrustManager} and assigns it to the {@link MqttBrokerConnection} instance.
      * The instance need to be set before calling this method. If the SHA-256 algorithm is not supported
      * by the platform, this method will do nothing.
      *
      * @throws IllegalArgumentException Throws this exception, if provided hash values cannot be
-     *             assigned to the {@link PinningSSLContextProvider}.
+     *             assigned to the {@link PinTrustManager}.
      */
     protected void assignSSLContextProvider(BrokerHandlerConfig config, MqttBrokerConnection connection,
             PinnedCallback callback) throws IllegalArgumentException {
@@ -154,13 +154,13 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
             try {
                 Pin pin;
                 if (config.certificate.isBlank()) {
-                    pin = Pin.LearningPin(PinType.CERTIFICATE_TYPE);
+                    pin = Pin.learningPin(PinType.CERTIFICATE_TYPE);
                 } else {
                     String[] split = config.certificate.split(":");
                     if (split.length != 2) {
                         throw new NoSuchAlgorithmException("Algorithm is missing");
                     }
-                    pin = Pin.CheckingPin(PinType.CERTIFICATE_TYPE, new PinMessageDigest(split[0]),
+                    pin = Pin.checkingPin(PinType.CERTIFICATE_TYPE, new PinMessageDigest(split[0]),
                             HexUtils.hexToBytes(split[1]));
                 }
                 trustManager.addPinning(pin);
@@ -172,13 +172,13 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
             try {
                 Pin pin;
                 if (config.publickey.isBlank()) {
-                    pin = Pin.LearningPin(PinType.PUBLIC_KEY_TYPE);
+                    pin = Pin.learningPin(PinType.PUBLIC_KEY_TYPE);
                 } else {
                     String[] split = config.publickey.split(":");
                     if (split.length != 2) {
                         throw new NoSuchAlgorithmException("Algorithm is missing");
                     }
-                    pin = Pin.CheckingPin(PinType.PUBLIC_KEY_TYPE, new PinMessageDigest(split[0]),
+                    pin = Pin.checkingPin(PinType.PUBLIC_KEY_TYPE, new PinMessageDigest(split[0]),
                             HexUtils.hexToBytes(split[1]));
                 }
                 trustManager.addPinning(pin);
@@ -200,8 +200,8 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
             throw new IllegalArgumentException("Host is empty!");
         }
 
-        final MqttBrokerConnection connection = new MqttBrokerConnection(host, config.port, config.secure,
-                config.clientID);
+        final MqttBrokerConnection connection = new MqttBrokerConnection(config.protocol, config.mqttVersion, host,
+                config.port, config.secure, config.hostnameValidated, config.clientID);
 
         final String username = config.username;
         final String password = config.password;

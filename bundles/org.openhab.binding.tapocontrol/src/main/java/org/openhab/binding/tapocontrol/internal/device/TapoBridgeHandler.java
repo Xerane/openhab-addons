@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -13,7 +13,7 @@
 package org.openhab.binding.tapocontrol.internal.device;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -49,7 +49,7 @@ import com.google.gson.JsonArray;
 public class TapoBridgeHandler extends BaseBridgeHandler {
     private final Logger logger = LoggerFactory.getLogger(TapoBridgeHandler.class);
     private final TapoErrorHandler bridgeError = new TapoErrorHandler();
-    private final TapoBridgeConfiguration config;
+    private TapoBridgeConfiguration config = new TapoBridgeConfiguration();
     private final HttpClient httpClient;
     private @Nullable ScheduledFuture<?> startupJob;
     private @Nullable ScheduledFuture<?> pollingJob;
@@ -64,7 +64,6 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
         super(bridge);
         Thing thing = getThing();
         this.cloudConnector = new TapoCloudConnector(this, httpClient);
-        this.config = new TapoBridgeConfiguration(thing);
         this.credentials = new TapoCredentials();
         this.uid = thing.getUID().toString();
         this.httpClient = httpClient;
@@ -81,7 +80,7 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
      * set credentials and login cloud
      */
     public void initialize() {
-        this.config.loadSettings();
+        this.config = getConfigAs(TapoBridgeConfiguration.class);
         this.credentials = new TapoCredentials(config.username, config.password);
         activateBridge();
     }
@@ -115,7 +114,7 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
      */
     @Override
     public Collection<Class<? extends ThingHandlerService>> getServices() {
-        return Collections.singleton(TapoDiscoveryService.class);
+        return Set.of(TapoDiscoveryService.class);
     }
 
     /**
@@ -146,13 +145,15 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
      * Start CloudLogin Scheduler
      */
     protected void startCloudScheduler() {
-        Integer pollingInterval = config.cloudReconnectIntervalM;
+        int pollingInterval = config.reconnectInterval;
+        TimeUnit timeUnit = TimeUnit.MINUTES;
         if (pollingInterval > 0) {
-            logger.trace("{} starting bridge cloud sheduler", this.uid);
+            logger.debug("{} starting cloudScheduler with interval {} {}", this.uid, pollingInterval, timeUnit);
 
             this.pollingJob = scheduler.scheduleWithFixedDelay(this::loginCloud, pollingInterval, pollingInterval,
-                    TimeUnit.MINUTES);
+                    timeUnit);
         } else {
+            logger.debug("({}) cloudScheduler disabled with config '0'", uid);
             stopScheduler(this.pollingJob);
         }
     }
@@ -161,13 +162,14 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
      * Start DeviceDiscovery Scheduler
      */
     protected void startDiscoveryScheduler() {
-        Integer pollingInterval = config.discoveryIntervalM;
-        if (config.cloudDiscoveryEnabled && pollingInterval > 0) {
-            logger.trace("{} starting bridge discovery sheduler", this.uid);
+        int pollingInterval = config.discoveryInterval;
+        TimeUnit timeUnit = TimeUnit.MINUTES;
+        if (config.cloudDiscovery && pollingInterval > 0) {
+            logger.debug("{} starting discoveryScheduler with interval {} {}", this.uid, pollingInterval, timeUnit);
 
-            this.discoveryJob = scheduler.scheduleWithFixedDelay(this::discoverDevices, 0, pollingInterval,
-                    TimeUnit.MINUTES);
+            this.discoveryJob = scheduler.scheduleWithFixedDelay(this::discoverDevices, 0, pollingInterval, timeUnit);
         } else {
+            logger.debug("({}) discoveryScheduler disabled with config '0'", uid);
             stopScheduler(this.discoveryJob);
         }
     }
@@ -175,7 +177,7 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
     /**
      * Stop scheduler
      * 
-     * @param scheduler ScheduledFeature<?> which schould be stopped
+     * @param scheduler {@code ScheduledFeature<?>} which schould be stopped
      */
     protected void stopScheduler(@Nullable ScheduledFuture<?> scheduler) {
         if (scheduler != null) {
@@ -254,9 +256,11 @@ public class TapoBridgeHandler extends BaseBridgeHandler {
      */
     public JsonArray getDeviceList() {
         JsonArray deviceList = new JsonArray();
-        if (config.cloudDiscoveryEnabled) {
+        if (config.cloudDiscovery) {
             logger.trace("{} discover devicelist from cloud", this.uid);
             deviceList = getDeviceListCloud();
+        } else {
+            logger.info("{} Discovery disabled in bridge settings ", this.uid);
         }
         return deviceList;
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -19,10 +19,10 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -75,7 +75,6 @@ import org.openhab.core.thing.type.ChannelTypeBuilder;
 import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.Command;
 import org.openhab.core.types.CommandOption;
-import org.openhab.core.types.RefreshType;
 import org.openhab.core.types.State;
 import org.openhab.core.types.StateDescriptionFragmentBuilder;
 import org.openhab.core.types.StateOption;
@@ -99,7 +98,7 @@ import com.google.gson.Gson;
 public class RemoteopenhabBridgeHandler extends BaseBridgeHandler
         implements RemoteopenhabStreamingDataListener, RemoteopenhabItemsDataListener {
 
-    private static final String DATE_FORMAT_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
+    private static final String DATE_FORMAT_PATTERN = "yyyy-MM-dd'T'HH:mm[:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]]Z";
     private static final DateTimeFormatter FORMATTER_DATE = DateTimeFormatter.ofPattern(DATE_FORMAT_PATTERN);
 
     private static final int MAX_STATE_SIZE_FOR_LOGGING = 50;
@@ -201,10 +200,7 @@ public class RemoteopenhabBridgeHandler extends BaseBridgeHandler
         }
 
         try {
-            if (command instanceof RefreshType) {
-                String state = restClient.getRemoteItemState(channelUID.getId());
-                updateChannelState(channelUID.getId(), null, state, false);
-            } else if (isLinked(channelUID)) {
+            if (isLinked(channelUID)) {
                 restClient.sendCommandToRemoteItem(channelUID.getId(), command);
                 String commandStr = command.toFullString();
                 logger.debug("Sending command {} to remote item {} succeeded",
@@ -556,7 +552,7 @@ public class RemoteopenhabBridgeHandler extends BaseBridgeHandler
             } else if (acceptedItemType.startsWith(CoreItemFactory.NUMBER + ":")) {
                 // Item type Number with dimension
                 if (stateType == null || "Quantity".equals(stateType)) {
-                    List<Class<? extends State>> stateTypes = Collections.singletonList(QuantityType.class);
+                    List<Class<? extends State>> stateTypes = List.of(QuantityType.class);
                     channelState = TypeParser.parseState(stateTypes, state);
                 } else if ("Decimal".equals(stateType)) {
                     channelState = new DecimalType(state);
@@ -577,7 +573,7 @@ public class RemoteopenhabBridgeHandler extends BaseBridgeHandler
                         break;
                     case CoreItemFactory.SWITCH:
                         if (checkStateType(itemName, stateType, "OnOff")) {
-                            channelState = "ON".equals(state) ? OnOffType.ON : OnOffType.OFF;
+                            channelState = OnOffType.from("ON".equals(state));
                         }
                         break;
                     case CoreItemFactory.CONTACT:
@@ -665,6 +661,6 @@ public class RemoteopenhabBridgeHandler extends BaseBridgeHandler
 
     @Override
     public Collection<Class<? extends ThingHandlerService>> getServices() {
-        return Collections.singleton(RemoteopenhabDiscoveryService.class);
+        return Set.of(RemoteopenhabDiscoveryService.class);
     }
 }

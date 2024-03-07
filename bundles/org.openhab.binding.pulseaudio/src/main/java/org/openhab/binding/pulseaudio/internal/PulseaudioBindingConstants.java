@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -16,7 +16,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.core.thing.ThingTypeUID;
 
 /**
- * The {@link PulseaudioBinding} class defines common constants, which are
+ * The {@link PulseaudioBindingConstants} class defines common constants, which are
  * used across the whole binding.
  *
  * @author Tobias Bräutigam - Initial contribution
@@ -48,7 +48,8 @@ public class PulseaudioBindingConstants {
     public static final String BRIDGE_PARAMETER_PORT = "port";
     public static final String BRIDGE_PARAMETER_REFRESH_INTERVAL = "refresh";
 
-    public static final String DEVICE_PARAMETER_NAME = "name";
+    public static final String DEVICE_PARAMETER_NAME_OR_DESCRIPTION = "name";
+    public static final String DEVICE_PARAMETER_ADDITIONAL_FILTERS = "additionalFilters";
     public static final String DEVICE_PARAMETER_AUDIO_SINK_ACTIVATION = "activateSimpleProtocolSink";
     public static final String DEVICE_PARAMETER_AUDIO_SINK_PORT = "simpleProtocolSinkPort";
     public static final String DEVICE_PARAMETER_AUDIO_SINK_IDLE_TIMEOUT = "simpleProtocolSinkIdleTimeout";

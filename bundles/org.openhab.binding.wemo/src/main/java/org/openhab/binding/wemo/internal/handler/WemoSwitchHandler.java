@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -37,10 +37,17 @@ import org.slf4j.LoggerFactory;
 public class WemoSwitchHandler extends WemoHandler {
 
     private final Logger logger = LoggerFactory.getLogger(WemoSwitchHandler.class);
-    private final Map<String, String> stateMap = new ConcurrentHashMap<String, String>();
+    private final Map<String, String> stateMap = new ConcurrentHashMap<>();
 
     public WemoSwitchHandler(Thing thing, UpnpIOService upnpIOService, WemoHttpCall wemoHttpCaller) {
         super(thing, upnpIOService, wemoHttpCaller);
+    }
+
+    @Override
+    public void initialize() {
+        logger.debug("Initializing WemoSwitchHandler for thing '{}'", thing.getUID());
+        updateStatus(ThingStatus.UNKNOWN);
+        super.initialize();
     }
 
     @Override
@@ -63,7 +70,7 @@ public class WemoSwitchHandler extends WemoHandler {
             String binaryState = stateMap.get("BinaryState");
             if (binaryState != null) {
                 if (oldValue == null || !oldValue.equals(binaryState)) {
-                    State state = "0".equals(binaryState) ? OnOffType.OFF : OnOffType.ON;
+                    State state = OnOffType.from(!"0".equals(binaryState));
                     logger.debug("State '{}' for device '{}' received", state, getThing().getUID());
                     updateState(WemoBindingConstants.CHANNEL_STATE, state);
                 }

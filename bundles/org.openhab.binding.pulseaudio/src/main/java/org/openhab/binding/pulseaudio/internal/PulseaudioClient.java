@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -23,14 +23,16 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Collectors;
 
-import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.pulseaudio.internal.cli.Parser;
+import org.openhab.binding.pulseaudio.internal.handler.DeviceIdentifier;
 import org.openhab.binding.pulseaudio.internal.items.AbstractAudioDeviceConfig;
 import org.openhab.binding.pulseaudio.internal.items.AbstractAudioDeviceConfig.State;
 import org.openhab.binding.pulseaudio.internal.items.Module;
@@ -147,10 +149,9 @@ public class PulseaudioClient {
      */
     public synchronized void update() {
         // one step copy
-        modules = new ArrayList<Module>(Parser.parseModules(listModules()));
+        modules = new ArrayList<>(Parser.parseModules(listModules()));
 
         List<AbstractAudioDeviceConfig> newItems = new ArrayList<>(); // prepare new list before assigning it
-        newItems.clear();
         if (configuration.sink) {
             logger.debug("reading sinks");
             newItems.addAll(Parser.parseSinks(listSinks(), this));
@@ -224,8 +225,8 @@ public class PulseaudioClient {
      */
     public @Nullable Sink getSink(String name) {
         for (AbstractAudioDeviceConfig item : items) {
-            if (item.getPaName().equalsIgnoreCase(name) && item instanceof Sink) {
-                return (Sink) item;
+            if (item.getPaName().equalsIgnoreCase(name) && item instanceof Sink sink) {
+                return sink;
             }
         }
         return null;
@@ -238,50 +239,8 @@ public class PulseaudioClient {
      */
     public @Nullable Sink getSink(int id) {
         for (AbstractAudioDeviceConfig item : items) {
-            if (item.getId() == id && item instanceof Sink) {
-                return (Sink) item;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * retrieves a {@link SinkInput} by its name
-     *
-     * @return the corresponding {@link SinkInput} to the given <code>name</code>
-     */
-    public @Nullable SinkInput getSinkInput(String name) {
-        for (AbstractAudioDeviceConfig item : items) {
-            if (item.getPaName().equalsIgnoreCase(name) && item instanceof SinkInput) {
-                return (SinkInput) item;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * retrieves a {@link SinkInput} by its id
-     *
-     * @return the corresponding {@link SinkInput} to the given <code>id</code>
-     */
-    public @Nullable SinkInput getSinkInput(int id) {
-        for (AbstractAudioDeviceConfig item : items) {
-            if (item.getId() == id && item instanceof SinkInput) {
-                return (SinkInput) item;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * retrieves a {@link Source} by its name
-     *
-     * @return the corresponding {@link Source} to the given <code>name</code>
-     */
-    public @Nullable Source getSource(String name) {
-        for (AbstractAudioDeviceConfig item : items) {
-            if (item.getPaName().equalsIgnoreCase(name) && item instanceof Source) {
-                return (Source) item;
+            if (item.getId() == id && item instanceof Sink sink) {
+                return sink;
             }
         }
         return null;
@@ -294,55 +253,40 @@ public class PulseaudioClient {
      */
     public @Nullable Source getSource(int id) {
         for (AbstractAudioDeviceConfig item : items) {
-            if (item.getId() == id && item instanceof Source) {
-                return (Source) item;
+            if (item.getId() == id && item instanceof Source source) {
+                return source;
             }
         }
         return null;
     }
 
     /**
-     * retrieves a {@link SourceOutput} by its name
+     * retrieves an {@link AbstractAudioDeviceConfig} by its identifier
+     * If several devices correspond to the deviceIdentifier, returns the first one (aphabetical order)
      *
-     * @return the corresponding {@link SourceOutput} to the given <code>name</code>
-     */
-    public @Nullable SourceOutput getSourceOutput(String name) {
-        for (AbstractAudioDeviceConfig item : items) {
-            if (item.getPaName().equalsIgnoreCase(name) && item instanceof SourceOutput) {
-                return (SourceOutput) item;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * retrieves a {@link SourceOutput} by its id
-     *
-     * @return the corresponding {@link SourceOutput} to the given <code>id</code>
-     */
-    public @Nullable SourceOutput getSourceOutput(int id) {
-        for (AbstractAudioDeviceConfig item : items) {
-            if (item.getId() == id && item instanceof SourceOutput) {
-                return (SourceOutput) item;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * retrieves a {@link AbstractAudioDeviceConfig} by its name
-     *
+     * @param deviceIdentifier The device identifier to match against
      * @return the corresponding {@link AbstractAudioDeviceConfig} to the given <code>name</code>
      */
-    public @Nullable AbstractAudioDeviceConfig getGenericAudioItem(String name) {
-        for (AbstractAudioDeviceConfig item : items) {
-            if (item.getPaName().equalsIgnoreCase(name)) {
-                return item;
-            }
+    public @Nullable AbstractAudioDeviceConfig getGenericAudioItem(DeviceIdentifier deviceIdentifier) {
+        List<AbstractAudioDeviceConfig> matchingDevices = items.stream()
+                .filter(device -> device.matches(deviceIdentifier))
+                .sorted(Comparator.comparing(AbstractAudioDeviceConfig::getPaName)).collect(Collectors.toList());
+        if (matchingDevices.size() == 1) {
+            return matchingDevices.get(0);
+        } else if (matchingDevices.size() > 1) {
+            logger.debug(
+                    "Cannot select exactly one audio device, so choosing the first. To choose without ambiguity between the {} devices matching the identifier {}, you can maybe use a more restrictive 'additionalFilter' parameter",
+                    matchingDevices.size(), deviceIdentifier.getNameOrDescription());
+            return matchingDevices.get(0);
         }
         return null;
     }
 
+    /**
+     * Get all items previously parsed from the pulseaudio server.
+     *
+     * @return All items parsed from the pulseaudio server
+     */
     public List<AbstractAudioDeviceConfig> getItems() {
         return items;
     }
@@ -368,7 +312,7 @@ public class PulseaudioClient {
     }
 
     /**
-     * change the volume of a {@link AbstractAudioDeviceConfig}
+     * change the volume of an {@link AbstractAudioDeviceConfig}
      *
      * @param item the {@link AbstractAudioDeviceConfig} to handle
      * @param vol the new volume value the {@link AbstractAudioDeviceConfig} should be changed to (possible values from
@@ -418,8 +362,10 @@ public class PulseaudioClient {
             currentTry++;
         } while (currentTry < 3);
 
-        logger.warn("The pulseaudio binding tried 3 times to load the module-simple-protocol-tcp"
-                + " on random port on the pulseaudio server and give up trying");
+        logger.warn("""
+                The pulseaudio binding tried 3 times to load the module-simple-protocol-tcp\
+                 on random port on the pulseaudio server and give up trying\
+                """);
         return Optional.empty();
     }
 
@@ -436,7 +382,7 @@ public class PulseaudioClient {
         if (itemType == null) {
             return Optional.empty();
         }
-        List<Module> modulesCopy = new ArrayList<Module>(modules);
+        List<Module> modulesCopy = new ArrayList<>(modules);
         var isSource = item instanceof Source;
         return modulesCopy.stream() // iteration on modules
                 .filter(module -> MODULE_SIMPLE_PROTOCOL_TCP_NAME.equals(module.getPaName())) // filter on module name
@@ -479,16 +425,18 @@ public class PulseaudioClient {
                 .map(portS -> Integer.parseInt(portS));
     }
 
-    private Optional<@NonNull String> extractArgumentFromLine(String argumentWanted, String argumentLine) {
+    private Optional<String> extractArgumentFromLine(String argumentWanted, @Nullable String argumentLine) {
         String argument = null;
-        int startPortIndex = argumentLine.indexOf(argumentWanted + "=");
-        if (startPortIndex != -1) {
-            startPortIndex = startPortIndex + argumentWanted.length() + 1;
-            int endPortIndex = argumentLine.indexOf(" ", startPortIndex);
-            if (endPortIndex == -1) {
-                endPortIndex = argumentLine.length();
+        if (argumentLine != null) {
+            int startPortIndex = argumentLine.indexOf(argumentWanted + "=");
+            if (startPortIndex != -1) {
+                startPortIndex = startPortIndex + argumentWanted.length() + 1;
+                int endPortIndex = argumentLine.indexOf(" ", startPortIndex);
+                if (endPortIndex == -1) {
+                    endPortIndex = argumentLine.length();
+                }
+                argument = argumentLine.substring(startPortIndex, endPortIndex);
             }
-            argument = argumentLine.substring(startPortIndex, endPortIndex);
         }
         return Optional.ofNullable(argument);
     }
@@ -513,7 +461,7 @@ public class PulseaudioClient {
     }
 
     /**
-     * change the volume of a {@link AbstractAudioDeviceConfig}
+     * change the volume of an {@link AbstractAudioDeviceConfig}
      *
      * @param item the {@link AbstractAudioDeviceConfig} to handle
      * @param vol the new volume percent value the {@link AbstractAudioDeviceConfig} should be changed to (possible
@@ -552,7 +500,10 @@ public class PulseaudioClient {
             slaves.add(sink.getPaName());
         }
         // 1. delete old combined-sink
-        sendRawCommand(CMD_UNLOAD_MODULE + " " + combinedSink.getModule().getId());
+        Module lastModule = combinedSink.getModule();
+        if (lastModule != null) {
+            sendRawCommand(CMD_UNLOAD_MODULE + " " + lastModule.getId());
+        }
         // 2. add new combined-sink with same name and all slaves
         sendRawCommand(CMD_LOAD_MODULE + " " + MODULE_COMBINE_SINK + " sink_name=" + combinedSink.getPaName()
                 + " slaves=" + String.join(",", slaves));
@@ -688,7 +639,6 @@ public class PulseaudioClient {
                         lc++;
                         if (retRead > 0) {
                             String line = new String(buff, 0, retRead);
-                            // System.out.println("'"+line+"'");
                             if (line.endsWith(">>> ") && lc > 1) {
                                 result += line.substring(0, line.length() - 4);
                                 break;
@@ -731,8 +681,9 @@ public class PulseaudioClient {
         if (clientSocket == null || clientSocket.isClosed() || !clientSocket.isConnected()) {
             logger.trace("Try to connect...");
             try {
-                client = new Socket(host, port);
-                client.setSoTimeout(500);
+                var clientFinal = new Socket(host, port);
+                clientFinal.setSoTimeout(500);
+                client = clientFinal;
                 logger.trace("connected");
             } catch (UnknownHostException e) {
                 client = null;

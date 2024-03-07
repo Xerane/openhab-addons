@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2024 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -23,9 +23,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.mqtt.generic.utils.FutureCollector;
 import org.openhab.binding.mqtt.generic.values.OnOffValue;
 import org.openhab.binding.mqtt.generic.values.Value;
 import org.openhab.binding.mqtt.handler.AbstractBrokerHandler;
@@ -83,6 +83,7 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
 
     private AtomicBoolean messageReceived = new AtomicBoolean(false);
     private Map<String, @Nullable ChannelState> availabilityStates = new ConcurrentHashMap<>();
+    private AvailabilityMode availabilityMode = AvailabilityMode.ALL;
 
     public AbstractMQTTThingHandler(Thing thing, int subscribeTimeout) {
         super(thing);
@@ -104,7 +105,13 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
      * @param connection A started broker connection
      * @return A future that completes normal on success and exceptionally on any errors.
      */
-    protected abstract CompletableFuture<@Nullable Void> start(MqttBrokerConnection connection);
+    protected CompletableFuture<@Nullable Void> start(MqttBrokerConnection connection) {
+        return availabilityStates.values().stream().map(cChannel -> {
+            final CompletableFuture<@Nullable Void> fut = cChannel == null ? CompletableFuture.completedFuture(null)
+                    : cChannel.start(connection, scheduler, 0);
+            return fut;
+        }).collect(FutureCollector.allOf());
+    }
 
     /**
      * Called when the MQTT connection disappeared.
@@ -255,7 +262,7 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
     @Override
     public void updateChannelState(ChannelUID channelUID, State value) {
         if (messageReceived.compareAndSet(false, true)) {
-            calculateThingStatus();
+            calculateAndUpdateThingStatus(true);
         }
         super.updateState(channelUID, value);
     }
@@ -263,7 +270,7 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
     @Override
     public void triggerChannel(ChannelUID channelUID, String event) {
         if (messageReceived.compareAndSet(false, true)) {
-            calculateThingStatus();
+            calculateAndUpdateThingStatus(true);
         }
         super.triggerChannel(channelUID, event);
     }
@@ -287,23 +294,30 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
     }
 
     @Override
+    public void setAvailabilityMode(AvailabilityMode mode) {
+        this.availabilityMode = mode;
+    }
+
+    @Override
     public void addAvailabilityTopic(String availability_topic, String payload_available,
             String payload_not_available) {
         addAvailabilityTopic(availability_topic, payload_available, payload_not_available, null, null);
     }
 
+    @Override
     public void addAvailabilityTopic(String availability_topic, String payload_available, String payload_not_available,
             @Nullable String transformation_pattern,
             @Nullable TransformationServiceProvider transformationServiceProvider) {
         availabilityStates.computeIfAbsent(availability_topic, topic -> {
             Value value = new OnOffValue(payload_available, payload_not_available);
-            ChannelGroupUID groupUID = new ChannelGroupUID(getThing().getUID(), "availablility");
+            ChannelGroupUID groupUID = new ChannelGroupUID(getThing().getUID(), "availability");
             ChannelUID channelUID = new ChannelUID(groupUID, UIDUtils.encode(topic));
             ChannelState state = new ChannelState(ChannelConfigBuilder.create().withStateTopic(topic).build(),
                     channelUID, value, new ChannelStateUpdateListener() {
                         @Override
                         public void updateChannelState(ChannelUID channelUID, State value) {
-                            calculateThingStatus();
+                            boolean online = value.equals(OnOffType.ON);
+                            calculateAndUpdateThingStatus(online);
                         }
 
                         @Override
@@ -327,8 +341,8 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
     }
 
     @Override
-    public void removeAvailabilityTopic(@NonNull String availability_topic) {
-        availabilityStates.computeIfPresent(availability_topic, (topic, state) -> {
+    public void removeAvailabilityTopic(String availabilityTopic) {
+        availabilityStates.computeIfPresent(availabilityTopic, (topic, state) -> {
             if (connection != null && state != null) {
                 state.stop();
             }
@@ -345,18 +359,23 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler
     @Override
     public void resetMessageReceived() {
         if (messageReceived.compareAndSet(true, false)) {
-            calculateThingStatus();
+            calculateAndUpdateThingStatus(false);
         }
     }
 
-    protected void calculateThingStatus() {
+    protected void calculateAndUpdateThingStatus(boolean lastValue) {
         final Optional<Boolean> availabilityTopicsSeen;
 
         if (availabilityStates.isEmpty()) {
             availabilityTopicsSeen = Optional.empty();
         } else {
-            availabilityTopicsSeen = Optional.of(availabilityStates.values().stream().allMatch(
-                    c -> c != null && OnOffType.ON.equals(c.getCache().getChannelState().as(OnOffType.class))));
+            availabilityTopicsSeen = switch (availabilityMode) {
+                case ALL -> Optional.of(availabilityStates.values().stream().allMatch(
+                        c -> c != null && OnOffType.ON.equals(c.getCache().getChannelState().as(OnOffType.class))));
+                case ANY -> Optional.of(availabilityStates.values().stream().anyMatch(
+                        c -> c != null && OnOffType.ON.equals(c.getCache().getChannelState().as(OnOffType.class))));
+                case LATEST -> Optional.of(lastValue);
+            };
         }
         updateThingStatus(messageReceived.get(), availabilityTopicsSeen);
     }
